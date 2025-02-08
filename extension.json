@@ -1,0 +1,60 @@
+{
+	"name": "AnotherDiscordNotificator",
+	"version": "0.1.0",
+	"author": [
+		"tesinormed"
+	],
+	"url": "https://www.mediawiki.org/wiki/Extension:AnotherDiscordNotificator",
+	"descriptionmsg": "anotherdiscordnotificator-desc",
+	"license-name": "CC0-1.0",
+	"type": "other",
+	"requires": {
+		"MediaWiki": ">= 1.43.0",
+		"extensions": {
+		},
+		"platform": {
+			"php": ">= 8.1",
+			"ext-curl": "*"
+		}
+	},
+	"AutoloadNamespaces": {
+		"MediaWiki\\Extension\\AnotherDiscordNotificator\\": "src/"
+	},
+	"callback": "MediaWiki\\Extension\\AnotherDiscordNotificator\\Hooks::onRegistration",
+	"config": {
+		"AnotherDiscordNotificatorWebhook": {
+			"value": null
+		},
+		"AnotherDiscordNotificatorIgnoreBots": {
+			"value": true
+		},
+		"AnotherDiscordNotificatorDisabledNamespaces": {
+			"value": []
+		}
+	},
+	"ConfigRegistry": {
+		"anotherdiscordnotificator": "GlobalVarConfig::newInstance"
+	},
+	"HookHandlers": {
+		"main": {
+			"class": "MediaWiki\\Extension\\AnotherDiscordNotificator\\Hooks",
+			"services": [
+				"ConfigFactory",
+				"TitleFormatter",
+				"LogFormatterFactory",
+				"ConnectionProvider",
+				"UserFactory",
+				"JsonCodec"
+			]
+		}
+	},
+	"Hooks": {
+		"RecentChange_save": "main"
+	},
+	"MessagesDirs": {
+		"AnotherDiscordNotificator": [
+			"i18n"
+		]
+	},
+	"manifest_version": 2
+}
