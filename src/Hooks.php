@@ -13,16 +13,18 @@ use MediaWiki\Title\Title;
 use MediaWiki\Title\TitleFormatter;
 use MediaWiki\User\UserFactory;
 use RecentChange;
+use RepoGroup;
 use RuntimeException;
 use Wikimedia\Rdbms\IConnectionProvider;
 
 class Hooks implements RecentChange_saveHook {
-	private const USER_AGENT = 'AnotherDiscordNotificator/0.1.0 (https://github.com/tesinormed/mediawiki-extensions-AnotherDiscordNotificator)';
+	private const USER_AGENT = 'AnotherDiscordNotificator/0.2.0 (https://github.com/tesinormed/mediawiki-extensions-AnotherDiscordNotificator)';
 
 	private Config $config;
 	private TitleFormatter $titleFormatter;
 	private LogFormatterFactory $logFormatterFactory;
 	private IConnectionProvider $dbProvider;
+	private RepoGroup $repoGroup;
 	private UserFactory $userFactory;
 	private JsonCodec $jsonCodec;
 
@@ -31,6 +33,7 @@ class Hooks implements RecentChange_saveHook {
 		TitleFormatter $titleFormatter,
 		LogFormatterFactory $logFormatterFactory,
 		IConnectionProvider $dbProvider,
+		RepoGroup $repoGroup,
 		UserFactory $userFactory,
 		JsonCodec $jsonCodec
 	) {
@@ -38,6 +41,7 @@ class Hooks implements RecentChange_saveHook {
 		$this->titleFormatter = $titleFormatter;
 		$this->logFormatterFactory = $logFormatterFactory;
 		$this->dbProvider = $dbProvider;
+		$this->repoGroup = $repoGroup;
 		$this->userFactory = $userFactory;
 		$this->jsonCodec = $jsonCodec;
 	}
@@ -69,15 +73,16 @@ class Hooks implements RecentChange_saveHook {
 			return;
 		}
 
+		$webhookPayload = [ 'embeds' => [] ];
 		switch ( $recentChange->getAttribute( 'rc_source' ) ) {
 			case RecentChange::SRC_EDIT:
-				$webhookPayload = [ 'embeds' => [ $this->editToEmbed( $recentChange ) ] ];
+				$webhookPayload['embeds'][] = $this->editToEmbed( $recentChange );
 				break;
 			case RecentChange::SRC_NEW:
-				$webhookPayload = [ 'embeds' => [ $this->newToEmbed( $recentChange ) ] ];
+				$webhookPayload['embeds'][] = $this->newToEmbed( $recentChange );
 				break;
 			case RecentChange::SRC_LOG:
-				$webhookPayload = [ 'embeds' => [ $this->logToEmbed( $recentChange ) ] ];
+				$webhookPayload['embeds'][] = $this->logToEmbed( $recentChange );
 				break;
 			default:
 				return;
@@ -170,7 +175,7 @@ class Hooks implements RecentChange_saveHook {
 			$description = "$description: {$logEntry->getComment()}";
 		}
 
-		return [
+		$embed = [
 			// 6647148 = #656d6c
 			'color' => 6647148,
 			'title' => $this->titleFormatter->getPrefixedText( $title ),
@@ -185,5 +190,13 @@ class Hooks implements RecentChange_saveHook {
 			],
 			'timestamp' => wfTimestamp( TS_ISO_8601, $recentChange->getAttribute( 'rc_timestamp' ) )
 		];
+		if ( $recentChange->getAttribute( 'rc_log_type' ) === 'upload' ) {
+			$embed = array_merge( $embed, [
+				'image' => [
+					'url' => $this->repoGroup->findFile( $recentChange->getPage() )->getFullUrl()
+				]
+			] );
+		}
+		return $embed;
 	}
 }
