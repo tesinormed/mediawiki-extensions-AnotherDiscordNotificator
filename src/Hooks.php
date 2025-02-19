@@ -106,8 +106,8 @@ class Hooks implements RecentChange_saveHook {
 		$title = Title::newFromPageReference( $recentChange->getPage() );
 		$user = $this->userFactory->newFromUserIdentity( $recentChange->getPerformerIdentity() );
 
-		$diffLink = rawurlencode( $title->getFullURL( $recentChange->diffLinkTrail( forceCur: true ) ) );
-		$histLink = rawurlencode( $title->getFullURL( "action=history&curid={$recentChange->getAttribute( 'rc_cur_id' )}" ) );
+		$diffLink = self::encodeUrl( $title->getFullURL( $recentChange->diffLinkTrail( forceCur: true ) ) );
+		$histLink = self::encodeUrl( $title->getFullURL( "action=history&curid={$recentChange->getAttribute( 'rc_cur_id' )}" ) );
 		$lenDifference = $recentChange->getAttribute( 'rc_new_len' ) - $recentChange->getAttribute( 'rc_old_len' );
 		$lenDifferenceText = ( $lenDifference > 0 ? '+' : '' ) . $lenDifference;
 		$description = "([diff]($diffLink) | [hist]($histLink)) ($lenDifferenceText)";
@@ -138,7 +138,7 @@ class Hooks implements RecentChange_saveHook {
 		$title = Title::newFromPageReference( $recentChange->getPage() );
 		$user = $this->userFactory->newFromUserIdentity( $recentChange->getPerformerIdentity() );
 
-		$histLink = rawurlencode( $title->getFullURL( "action=history&curid={$recentChange->getAttribute( 'rc_cur_id' )}" ) );
+		$histLink = self::encodeUrl( $title->getFullURL( "action=history&curid={$recentChange->getAttribute( 'rc_cur_id' )}" ) );
 		$description = "([hist]($histLink)) ({$recentChange->getAttribute( 'rc_new_len' )})";
 		if ( $recentChange->getAttribute( 'rc_comment' ) ) {
 			$description = $recentChange->getAttribute( 'rc_comment' ) . ' ' . $description;
@@ -198,5 +198,9 @@ class Hooks implements RecentChange_saveHook {
 			] );
 		}
 		return $embed;
+	}
+
+	private static function encodeUrl( string $url ): string {
+		return str_replace( ")", "%29", str_replace( "(", "%28", $url ) );
 	}
 }
