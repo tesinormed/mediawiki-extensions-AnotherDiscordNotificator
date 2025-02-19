@@ -18,7 +18,7 @@ use RuntimeException;
 use Wikimedia\Rdbms\IConnectionProvider;
 
 class Hooks implements RecentChange_saveHook {
-	private const USER_AGENT = 'AnotherDiscordNotificator/0.2.0 (https://github.com/tesinormed/mediawiki-extensions-AnotherDiscordNotificator)';
+	private const USER_AGENT = 'AnotherDiscordNotificator/0.2.1 (https://github.com/tesinormed/mediawiki-extensions-AnotherDiscordNotificator)';
 
 	private Config $config;
 	private TitleFormatter $titleFormatter;
