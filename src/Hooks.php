@@ -18,7 +18,7 @@ use RuntimeException;
 use Wikimedia\Rdbms\IConnectionProvider;
 
 class Hooks implements RecentChange_saveHook {
-	private const USER_AGENT = 'AnotherDiscordNotificator/0.2.0 (https://github.com/tesinormed/mediawiki-extensions-AnotherDiscordNotificator)';
+	private const USER_AGENT = 'AnotherDiscordNotificator/0.2.1 (https://github.com/tesinormed/mediawiki-extensions-AnotherDiscordNotificator)';
 
 	private Config $config;
 	private TitleFormatter $titleFormatter;
@@ -76,13 +76,22 @@ class Hooks implements RecentChange_saveHook {
 		$webhookPayload = [ 'embeds' => [] ];
 		switch ( $recentChange->getAttribute( 'rc_source' ) ) {
 			case RecentChange::SRC_EDIT:
-				$webhookPayload['embeds'][] = $this->editToEmbed( $recentChange );
+				$embed = $this->editToEmbed( $recentChange );
+				if ( $embed !== null ) {
+					$webhookPayload['embeds'][] = $embed;
+				}
 				break;
 			case RecentChange::SRC_NEW:
-				$webhookPayload['embeds'][] = $this->newToEmbed( $recentChange );
+				$embed = $this->newToEmbed( $recentChange );
+				if ( $embed !== null ) {
+					$webhookPayload['embeds'][] = $embed;
+				}
 				break;
 			case RecentChange::SRC_LOG:
-				$webhookPayload['embeds'][] = $this->logToEmbed( $recentChange );
+				$embed = $this->logToEmbed( $recentChange );
+				if ( $embed !== null ) {
+					$webhookPayload['embeds'][] = $embed;
+				}
 				break;
 			default:
 				return;
@@ -102,12 +111,12 @@ class Hooks implements RecentChange_saveHook {
 		curl_exec( $curlHandle );
 	}
 
-	private function editToEmbed( RecentChange $recentChange ): array {
+	private function editToEmbed( RecentChange $recentChange ): ?array {
 		$title = Title::newFromPageReference( $recentChange->getPage() );
 		$user = $this->userFactory->newFromUserIdentity( $recentChange->getPerformerIdentity() );
 
-		$diffLink = $title->getFullURL( $recentChange->diffLinkTrail( forceCur: true ) );
-		$histLink = $title->getFullURL( "action=history&curid={$recentChange->getAttribute( 'rc_cur_id' )}" );
+		$diffLink = self::encodeUrl( $title->getFullURL( $recentChange->diffLinkTrail( forceCur: true ) ) );
+		$histLink = self::encodeUrl( $title->getFullURL( "action=history&curid={$recentChange->getAttribute( 'rc_cur_id' )}" ) );
 		$lenDifference = $recentChange->getAttribute( 'rc_new_len' ) - $recentChange->getAttribute( 'rc_old_len' );
 		$lenDifferenceText = ( $lenDifference > 0 ? '+' : '' ) . $lenDifference;
 		$description = "([diff]($diffLink) | [hist]($histLink)) ($lenDifferenceText)";
@@ -126,7 +135,7 @@ class Hooks implements RecentChange_saveHook {
 				'name' => $user->getName(),
 				'url' => $user->getUserPage()->getFullURL()
 			],
-			'description' => $description,
+			'description' => self::escapeDiscordMarkdown( $description ),
 			'footer' => [
 				'text' => $recentChange->getAttribute( 'rc_source' )
 			],
@@ -134,11 +143,11 @@ class Hooks implements RecentChange_saveHook {
 		];
 	}
 
-	private function newToEmbed( RecentChange $recentChange ): array {
+	private function newToEmbed( RecentChange $recentChange ): ?array {
 		$title = Title::newFromPageReference( $recentChange->getPage() );
 		$user = $this->userFactory->newFromUserIdentity( $recentChange->getPerformerIdentity() );
 
-		$histLink = $title->getFullURL( "action=history&curid={$recentChange->getAttribute( 'rc_cur_id' )}" );
+		$histLink = self::encodeUrl( $title->getFullURL( "action=history&curid={$recentChange->getAttribute( 'rc_cur_id' )}" ) );
 		$description = "([hist]($histLink)) ({$recentChange->getAttribute( 'rc_new_len' )})";
 		if ( $recentChange->getAttribute( 'rc_comment' ) ) {
 			$description = $recentChange->getAttribute( 'rc_comment' ) . ' ' . $description;
@@ -153,7 +162,7 @@ class Hooks implements RecentChange_saveHook {
 				'name' => $user->getName(),
 				'url' => $user->getUserPage()->getFullURL()
 			],
-			'description' => $description,
+			'description' => self::escapeDiscordMarkdown( $description ),
 			'footer' => [
 				'text' => $recentChange->getAttribute( 'rc_source' )
 			],
@@ -161,13 +170,16 @@ class Hooks implements RecentChange_saveHook {
 		];
 	}
 
-	private function logToEmbed( RecentChange $recentChange ): array {
+	private function logToEmbed( RecentChange $recentChange ): ?array {
 		$title = Title::newFromPageReference( $recentChange->getPage() );
 		$user = $this->userFactory->newFromUserIdentity( $recentChange->getPerformerIdentity() );
 		$logEntry = DatabaseLogEntry::newFromId(
 			$recentChange->getAttribute( 'rc_logid' ),
 			$this->dbProvider->getReplicaDatabase()
 		);
+		if ( $logEntry === null ) {
+			return null;
+		}
 
 		$logFormatter = $this->logFormatterFactory->newFromEntry( $logEntry );
 		$description = $logFormatter->getPlainActionText();
@@ -184,7 +196,7 @@ class Hooks implements RecentChange_saveHook {
 				'name' => $user->getName(),
 				'url' => $user->getUserPage()->getFullURL()
 			],
-			'description' => $description,
+			'description' => self::escapeDiscordMarkdown( $description ),
 			'footer' => [
 				'text' => $recentChange->getAttribute( 'rc_source' )
 			],
@@ -198,5 +210,16 @@ class Hooks implements RecentChange_saveHook {
 			] );
 		}
 		return $embed;
+	}
+
+	private static function encodeUrl( string $url ): string {
+		return str_replace( ")", "%29", str_replace( "(", "%28", $url ) );
+	}
+
+	private static function escapeDiscordMarkdown( string $text ): string {
+		return preg_replace(
+			'#([*_`~\\\\])#m', '\\\$1',
+			preg_replace( '#\\\\([*_`~\\\\])#m', '$1', $text )
+		);
 	}
 }
